@@ -1,0 +1,94 @@
+*** Key Components of the staking smart contract ***
+-----------------------------------------------------
+  
+1) Constants Module: Defines constant values used throughout the program, such as vault seeds and time intervals.
+
+- VAULT_SEED: Seed for the token vault.
+- STAKE_INFO_SEED: Seed for stake information accounts.
+- TOKEN_SEED: Seed for user stake token accounts.
+- SLOTS_PER_DAY, SLOTS_PER_WEEK, etc.: Defines time intervals in slots.
+  
+2) PoolInfo Struct: Stores information about the staking pool.
+
+- admin: The administrator's public key.
+- token_vault: The vault holding the tokens that will used for reward disttribution.
+- lock_time: Duration tokens are locked for staking.
+- apy: Annual percentage yield for rewards.
+- apy_denominator: Denominator for calculating APY.
+- roi_type: Type of return on investment (daily, weekly, monthly).
+- token: The mint associated with the staking tokens.
+  
+3) StakeInfo Struct: Stores information about a user's staking activity.
+
+- staked_amount: Amount of tokens currently staked.
+- deposit_timestamp: Timestamp of when the tokens were deposited.
+- stake_at_slot: The slot when the stake was made.
+- is_staked: Boolean indicating if the account is currently staked.
+- end_time: The slot when the lock period ends.
+- autostake: Boolean indicating if rewards should be auto-staked.
+- unclaimed_rewards: Rewards that have not yet been claimed.
+- last_interaction_time: Slot of the last interaction with the staking account.
+- next_claim_time: The next slot when rewards can be claimed.
+- pool_info: Public key of the associated pool info.
+- total_claimed: Total rewards claimed by the user.
+- total_claim_cycles: Total reward cycles available.
+- claim_cycles_passed: Number of cycles for which rewards have been claimed.
+
+  
+*** Functions ***
+-----------------
+  
+1) initialize
+
+- Initializes the staking pool with parameters like lock time, APY, ROI type, and admin public key.
+- Requires accounts for the admin and token vault.
+- Token Vault is a PDA generated with the seed b"vault"
+- The staking pool can only be initialized by a wallet address hardcoded in the Initialize function
+  
+2) stake
+
+- Allows a user to stake a specified amount of tokens.
+- Updates the stake information, calculates end time, and sets up reward calculations based on the lock time and ROI type.
+- Ensures the user is not already staked.
+  
+3) destake
+
+- Allows a user to unstake their tokens after the lock period.
+- Calculates potential rewards based on the staking duration and transfers the staked amount back to the user.
+- Resets the stake information.
+  
+4) calculate_rewards
+
+- Calculates the total rewards a user is entitled to based on the current stake amount and the pool's APY.
+- Returns the total reward amount.
+- The rewards are calcluated for next 
+  
+5) claim_rewards
+
+- Allows users to claim their rewards if certain conditions are met (e.g., sufficient time has passed since the last claim).
+- Updates the stake information with the claimed rewards and resets the unclaimed rewards.
+  
+6) restake_rewards
+
+- Allows users to automatically restake their rewards instead of claiming them.
+- Updates the staked amount and other stake information accordingly.
+  
+7) update_pool_info
+
+- Allows the admin to update parameters of the staking pool, such as APY and lock time.
+- Ensures that only the current admin can make changes.
+
+8) admin_withdraw
+
+- Allows the admin to withdraw funds from the token vault.
+- Ensures that only the admin can initiate the withdrawal.
+
+  
+9) Error Codes
+error codes for various failure scenarios, enhancing the robustness of user interactions. Examples include:
+
+- IsStaked: Indicates that the user is already staked when attempting to stake again.
+- NoTokens: Indicates an attempt to stake zero tokens.
+- NotStaked: Indicates an attempt to unstake when no tokens are currently staked.
+- StillLocked: Indicates an attempt to unstake before the lock period has expired.
+- AlreadyClaimed: Indicates an attempt to claim rewards that have already been claimed.
