@@ -12,7 +12,7 @@
 
 - admin: The administrator's public key.
 - token_vault: The vault holding the tokens that will used for reward disttribution.
-- lock_time: Duration tokens are locked for staking.
+- lock_time: Duration tokens are locked for staking in Weeks. 
 - apy: Annual percentage yield for rewards.
 - apy_denominator: Denominator for calculating APY.
 - roi_type: Type of return on investment (daily, weekly, monthly).
@@ -33,6 +33,7 @@
 - total_claimed: Total rewards claimed by the user.
 - total_claim_cycles: Total reward cycles available.
 - claim_cycles_passed: Number of cycles for which rewards have been claimed.
+- stake_seed: A seed value used to create the Stake info account (PDA)
 
   
 *** Functions ***
@@ -49,7 +50,7 @@
 
 - Allows a user to stake a specified amount of tokens.
 - Updates the stake information, calculates end time, and sets up reward calculations based on the lock time and ROI type.
-- Ensures the user is not already staked.
+- Ensures that the user is not staking again in the same stake info account
   
 3) destake
 
@@ -61,7 +62,7 @@
 
 - Calculates the total rewards a user is entitled to based on the current stake amount and the pool's APY.
 - Returns the total reward amount.
-- The rewards are calcluated for next 
+- The rewards are calcluated for next reward cycle
   
 5) claim_rewards
 
@@ -90,5 +91,12 @@ error codes for various failure scenarios, enhancing the robustness of user inte
 - IsStaked: Indicates that the user is already staked when attempting to stake again.
 - NoTokens: Indicates an attempt to stake zero tokens.
 - NotStaked: Indicates an attempt to unstake when no tokens are currently staked.
+- NoTokens: Indicates that the user entered zero or negative amount in stake function
 - StillLocked: Indicates an attempt to unstake before the lock period has expired.
+- InvalidRoiType: Indicates that the ROI type selected does not exists
+- NoReward: Indicates that there are no rewards to claim
+- wait: Indicates that the user needs to wait for the next claim cycle to claim these tokens
+- NoClaim: Indicates that the user has auto staked enabled and can not claim rewards periodically 
 - AlreadyClaimed: Indicates an attempt to claim rewards that have already been claimed.
+- Unauthorized: Indicates that the function can not be claimed by the current signer
+- TimeOver: Indicates that the claim time is over
