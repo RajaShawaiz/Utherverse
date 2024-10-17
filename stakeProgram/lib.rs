@@ -7,7 +7,7 @@ use anchor_spl::{
 use solana_program::clock::Clock;
 use solana_program::pubkey;
 
-declare_id!("EYS4fgrfwbvu2cz8oCFZrX3a5orVjWnGULaVPgRd7DV4");
+declare_id!("4JDLHn7pSyjbnzcMXLg5NdLRpNLiVNU8B2Z6CgzVAwSz");
 
 pub mod constants {
     pub const VAULT_SEED: &[u8] = b"vault";
@@ -42,7 +42,12 @@ pub mod staking_program {
         Ok(())
     }
 
-    pub fn stake(ctx: Context<Stake>, amount: u64, autostake: bool) -> Result<()> {
+    pub fn stake(
+        ctx: Context<Stake>,
+        stake_counter: u64,
+        amount: u64,
+        autostake: bool,
+    ) -> Result<()> {
         let stake_info = &mut ctx.accounts.stake_info_account;
 
         if stake_info.is_staked {
@@ -58,6 +63,7 @@ pub mod staking_program {
         msg!("Deposit Timestamp: {}", stake_info.deposit_timestamp);
         stake_info.stake_at_slot = clock.slot;
         stake_info.is_staked = true;
+        stake_info.stake_seed = stake_counter;
         stake_info.autostake = autostake;
         let pool_info = &ctx.accounts.pool_info;
         let lock_time = pool_info.lock_time;
@@ -455,6 +461,31 @@ pub mod staking_program {
         Ok(())
     }
 
+    pub fn derive_pda(ctx: Context<DerivePda>, input_number: u64) -> Result<()> {
+        let seeds: &[&[u8]] = &[
+            &input_number.to_le_bytes(),         // Convert the u64 number to bytes
+            b"stake_info",                       // Use a constant seed
+            ctx.accounts.signer.key.as_ref(),    // Signer's public key
+            ctx.accounts.pool_info.key.as_ref(), // Pool info public key
+        ];
+
+        // Derive the PDA
+        let (pda, bump) = Pubkey::find_program_address(seeds, ctx.program_id);
+
+        // Log the derived PDA
+        msg!("Derived PDA: {}", pda);
+        msg!("Bump: {}", bump);
+
+        Ok(())
+    }
+
+}
+
+#[derive(Accounts)]
+pub struct DerivePda<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    pub pool_info: AccountInfo<'info>, // Just to satisfy the context; no need for specific data
 }
 
 #[derive(Accounts)]
@@ -490,16 +521,17 @@ pub struct PoolInfo {
 }
 
 #[derive(Accounts)]
+#[instruction(stake_counter: u64)]
 pub struct Stake<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
 
     #[account(
         init_if_needed,
-        seeds = [constants::STAKE_INFO_SEED, signer.key.as_ref(), pool_info.key().as_ref()],
+        seeds = [ &stake_counter.to_le_bytes().as_ref(), constants::STAKE_INFO_SEED, signer.key.as_ref(), pool_info.key().as_ref(),  ],
         bump,
-        payer = signer,
-        space = 8 + std::mem::size_of::<StakeInfo>()
+        payer = signer, 
+        space = 8 + 8 + std::mem::size_of::<StakeInfo>(),
     )]
     pub stake_info_account: Account<'info, StakeInfo>,
 
@@ -654,6 +686,7 @@ pub struct StakeInfo {
     pub total_claimed: u64,
     pub total_claim_cycles: u64,
     pub claim_cycles_passed: u64,
+    pub stake_seed: u64,
 }
 
 #[error_code]
