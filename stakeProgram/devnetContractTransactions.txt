@@ -1,0 +1,7 @@
+
+Devnet Program Id: 4JDLHn7pSyjbnzcMXLg5NdLRpNLiVNU8B2Z6CgzVAwSz
+
+Initialize Pool trx: https://explorer.solana.com/tx/rq6vbUnHLFu3NrCU6rrfUJsqAHhJ25Hwy2QdXsXJp4ayznikF3nGFaoeFFq7JnGUaAZ3uiLWbESq3YmFb82rJ5d?cluster=devnet
+
+Stake trx: https://explorer.solana.com/tx/2NzZGnvhDVtJ83T31SKsk5mejdKwtyNAWHtUKjPhdswGQG7jSVsThkG9bFH38zjDuKRvsr3N2CEfNJoeomD3USfK?cluster=devnet
+
