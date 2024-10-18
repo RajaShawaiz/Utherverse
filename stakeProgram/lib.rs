@@ -7,7 +7,7 @@ use anchor_spl::{
 use solana_program::clock::Clock;
 use solana_program::pubkey;
 
-declare_id!("4JDLHn7pSyjbnzcMXLg5NdLRpNLiVNU8B2Z6CgzVAwSz");
+declare_id!("EHewQr3kinhMsdRQgW5pPLRKo14iwrhscygCDrKKPuEy");
 
 pub mod constants {
     pub const VAULT_SEED: &[u8] = b"vault";
@@ -461,17 +461,11 @@ pub mod staking_program {
         Ok(())
     }
 
-    //removed unnecessary  functions
-
-   
 }
-
-
-
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
-    #[account(mut,address=pubkey!("CCbVpAQrdVhFoteeHj6mA7oeumnvzk36sMm7TfGaCEkD"))]
+    #[account(mut,address=pubkey!("2EoDxYope1BDUWM6hAWdQ1iwcbEpumiddfTEjuUNF6ud"))]
     pub signer: Signer<'info>,
     #[account(mut)]
     pub admin: UncheckedAccount<'info>,
