@@ -461,32 +461,13 @@ pub mod staking_program {
         Ok(())
     }
 
-    pub fn derive_pda(ctx: Context<DerivePda>, input_number: u64) -> Result<()> {
-        let seeds: &[&[u8]] = &[
-            &input_number.to_le_bytes(),         // Convert the u64 number to bytes
-            b"stake_info",                       // Use a constant seed
-            ctx.accounts.signer.key.as_ref(),    // Signer's public key
-            ctx.accounts.pool_info.key.as_ref(), // Pool info public key
-        ];
+    //removed unnecessary  functions
 
-        // Derive the PDA
-        let (pda, bump) = Pubkey::find_program_address(seeds, ctx.program_id);
-
-        // Log the derived PDA
-        msg!("Derived PDA: {}", pda);
-        msg!("Bump: {}", bump);
-
-        Ok(())
-    }
-
+   
 }
 
-#[derive(Accounts)]
-pub struct DerivePda<'info> {
-    #[account(mut)]
-    pub signer: Signer<'info>,
-    pub pool_info: AccountInfo<'info>, // Just to satisfy the context; no need for specific data
-}
+
+
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
