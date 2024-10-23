@@ -67,6 +67,30 @@ and we can read data from them
 
         stake_info.unclaimed_rewards = stake_info.unclaimed_rewards - total_claimable_rewards;
 
+6) Restake Rewards
+- Timing Checks have been added, user can not restake before next stake cycle and can not restake after the stake period is over.
+
+        if cycles_passed < 1 {
+            return Err(ErrorCode::Wait.into()); // Not enough time passed for any reward to restake
+        }
+        if stake_info.last_interaction_time > stake_info.end_time {
+            return Err(ErrorCode::TimeOver.into()); //You have restaked all the rewards and unstaked your tokens
+        }
+         if stake_info.claim_cycles_passed == stake_info.total_claim_cycles {
+            return Err(ErrorCode::AlreadyClaimed.into()); //restake for all reward cycles have already been done
+        }
+- Reentrance attack and race conditions are being avoided by the following check
+
+         if stake_info.in_process {
+            return Err(ErrorCode::AlreadyInProcess.into());
+        }
+
+        stake_info.in_process = true;
+
+- Unclaimed restake reward Reset Logic has been updated, instead of resetting the unclaimed restake rewards to 0, we are dedcuted the claimable restake rewards from unclaimed restake rewards.
+
+        stake_info.unclaimed_rewards = stake_info.unclaimed_rewards - total_claimable_rewards;
+
 
 
 
