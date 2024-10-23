@@ -30,7 +30,21 @@ and we can read data from them
 
 3) DeStake Function
 
-- 
+- Reentrance attack and race conditions are being avoided by the following check
+
+         if stake_info.in_process {
+            return Err(ErrorCode::AlreadyInProcess.into());
+        }
+
+        stake_info.in_process = true;
+- We have changed the 'for' loop with compund interest formula to avoid any unneccessary gas consumption and to avoid running into infinite loop
+
+        let apy_per_cycle = pool_info.apy as f64 / pool_info.apy_denominator as f64
+                * (cycle_duration as f64 / constants::SLOTS_PER_YEAR as f64);
+
+            // Calculate total compounded reward
+            let total_reward = current_stake as f64 * (1.0 + apy_per_cycle).powi(total_cycles)
+                - current_stake as f64;
 
 4) Calculate Rewards
 - Added the input validations for the stake_amount and Apy_denominator
