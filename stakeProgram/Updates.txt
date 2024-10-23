@@ -1,4 +1,4 @@
-1) Intialize function
+1) Intialize Function
 - The initialize function has been updated with input paramters validation
 - The admin address is being validated before setting it up in the pool_info account
 (from our frontend, we will pass the admin address same as the signer address but we might have differnet vaults and different admins for each stake pool in the future, 
@@ -6,17 +6,17 @@ therfore, we have the option to setup the pool admin in the initialize and updat
 
 
 2) Stake function
-- We are updating the some states before transfer token event so that there is no chance of re-entrance attack
+- We are updating some of the states before transfer token event so that there is no chance of re-entrance attack
 
-        if stake_info.is_staked {
-            return Err(ErrorCode::IsStaked.into());
+        if stake_info.in_process {
+            return Err(ErrorCode::AlreadyInProcess.into());
         }
-        stake_info.is_staked = true;
+
+        stake_info.in_process = true;
 
         //transfer tokens
 
 - The above check will make sure that the attackers can not re enter and call the stake function for the same pool again, we are managing the state before the transfer token function
-
 - The stake_counter is a unique integrae vaule, we are using using stake_counter to allow users to stake in the same stake_pool but have different stake_info_account each time.
 - stake_info_account is a pda, which is being derived from stake_counter, STAKE_INFO_SEED, signer address, pool address.
 
@@ -28,9 +28,45 @@ therfore, we have the option to setup the pool admin in the initialize and updat
 and we can read data from them
 
 
+3) DeStake Function
 
+- 
 
-3) 
+4) Calculate Rewards
+- Added the input validations for the stake_amount and Apy_denominator
+
+        if stake_info.staked_amount <= 0 {
+            return Err(ErrorCode::InvalidAmount.into());
+        }
+
+        if pool_info.apy_denominator <= 0 {
+            return Err(ErrorCode::InvalidApyDenominator.into());
+        }
+
+5) Claim Rewards
+- Timing Checks have been added, user can not claim before next stake cycle and can not claim after the stake period is over
+
+        if cycles_passed < 1 {
+            return Err(ErrorCode::Wait.into()); // Not enough time passed for any reward cycle
+        }
+        if stake_info.last_interaction_time > stake_info.end_time {
+            return Err(ErrorCode::TimeOver.into()); //You have claimed all the rewards and unstake your tokens
+        }
+         if stake_info.claim_cycles_passed == stake_info.total_claim_cycles {
+            return Err(ErrorCode::AlreadyClaimed.into()); //Rewards for all reward cycles have already been claimed
+        }
+- Reentrance attack and race conditions are being avoided by the following check
+
+         if stake_info.in_process {
+            return Err(ErrorCode::AlreadyInProcess.into());
+        }
+
+        stake_info.in_process = true;
+
+- Unclaimed Rewards Reset Logic has been updated, instead of resetting the unclaimed rewards to 0, we are dedcuted the claimable rewards from unclaimed rewards.
+
+        stake_info.unclaimed_rewards = stake_info.unclaimed_rewards - total_claimable_rewards;
+
 
 
 
