@@ -13,7 +13,7 @@ pub mod constants {
     pub const VAULT_SEED: &[u8] = b"vault";
     pub const STAKE_INFO_SEED: &[u8] = b"stake_info";
     pub const TOKEN_SEED: &[u8] = b"token";
-    pub const SLOTS_PER_DAY: u64 = 500;
+    pub const SLOTS_PER_DAY: u64 = 216000;
     pub const SLOTS_PER_WEEK: u64 = SLOTS_PER_DAY * 7;
     pub const SLOTS_PER_MONTH: u64 = SLOTS_PER_DAY * 30;
     pub const SLOTS_PER_YEAR: u64 = SLOTS_PER_DAY * 365;
