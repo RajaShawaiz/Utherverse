@@ -130,6 +130,6 @@ Stores all metadata related to a specific round, claim type, and batch:
 
 ---
 
-## License
-This program is open-source and available under the [MIT License](LICENSE).
+## Deployment
+This code is compiled and build using solana playground, online ide https://beta.solpg.io/
 
