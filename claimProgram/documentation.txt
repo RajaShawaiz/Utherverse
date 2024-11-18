@@ -1,0 +1,22 @@
+*** Key Components of the claim program ***
+-----------------------------------------------------
+  
+1) Constants Module: Defines constant values used throughout the program, such as escrow seeds and data account seeds.
+
+- DATA_SEED: Seed for the data account (PDA) that will store all the information of the claim pool.
+- ESCROW_SEED: Seed for the escrow wallet (PDA) that will hold all the funds for the single data account.
+  
+2) Data Account Struct: Stores information about the claim pool.
+
+- initializer: The administrator's public key.
+- released: The flag to check whether or not admin has released the funds for claiming
+- round: Specify the round number for the claiming
+- claim Type: Specify the claim type for users (ICO users, Presale users, Investors, etc)
+- batch: specify the number of times claim pool has been initialized for same round and claim type. (Same round number and claim type can have multiple batches)  
+- token_amount: specify the number of tokens that will be distributed to users from this data account
+- escrow_wallet: Escrow wallet will hold all the tokens for the data account and users will be able to claim tokens from this escrow
+- token_mint: The mint associated with the claiming tokens
+- decimals: Decimals of the associated mint (used for lamports calculations)
+- beneficiaries: List of users wallet addresses , allocated token amount and their claim , block statuses
+
+  
