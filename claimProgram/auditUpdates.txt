@@ -1,6 +1,8 @@
 Hi there, 
 Thanks for providing the thorugh audit report for the utherverse claim program, here are the fixes accoridng to the audit suggestions.
 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 1) update_bulk_user_status function
 
 - We have made sure that the access control for this function is safely managed and it only allows the initializer to update the stauts of the users. 
@@ -46,6 +48,12 @@ cases have been covered. There can not be infinite minting as the admin can inti
 tp store the data and we providing the proceesed data to contract, the initialization logic is intended to work like that. 
 
 5) No Recovery Mechanism for Unclaimed Tokens
+- We have created a function named withdraw_from_escrow(), this function will allow only the initializer to withdraw all the unclaimed rewards. 
+- There are some pre-requisets of this function, i) the admin can only withdraw the funds of users who have either not claimed the tokens or they are blocked to claimed tokens from escrow. 
+ii) if initializer wishes to close the claim pool then he needs to block all the user who have not claimed yet using the function named update_bulk_user_status(). After that he can withdraw all the remianing funds from the escrow. 
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 
 
