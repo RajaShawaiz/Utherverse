@@ -41,7 +41,7 @@ Thank you for providing a thorough audit report for the Utherverse Claim Program
     )]
     pub escrow_wallet: Account<'info, TokenAccount>,
 - In the above snippet, a PDA named escrow_wallet is created with custom seeds and a bump value. This PDA is specifically designed to store tokens and its authority is tied to the same
-PDA, ensuring that no external mutable account can hijack the escrow wallet. Only the program can access and transfer funds from this escrow.
+  PDA, ensuring that no external mutable account can hijack the escrow wallet. Only the program can access and transfer funds from this escrow.
 
 4)  Infinite Token Minting via Initialization
 - The backend for the claim pool initialization has been developed with comprehensive input validations and security checks.
@@ -52,7 +52,8 @@ PDA, ensuring that no external mutable account can hijack the escrow wallet. Onl
 5) No Recovery Mechanism for Unclaimed Tokens
 - We have implemented a function named withdraw_from_escrow(). This function allows only the initializer to withdraw unclaimed rewards under certain conditions:
         1) The admin can withdraw tokens belonging to users who either have not claimed their rewards or are blocked from doing so.
-        2) If the initializer wishes to close the claim pool, they must block all unclaimed users using the update_bulk_user_status() function. Once this is done, the initializer can                  withdraw the remaining funds from the escrow.
+        2) If the initializer wishes to close the claim pool, they must block all unclaimed users using the update_bulk_user_status() function. Once this is done, the initializer can
+           withdraw the remaining funds from the escrow.
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
