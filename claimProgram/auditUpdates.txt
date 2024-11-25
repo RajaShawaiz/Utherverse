@@ -1,12 +1,12 @@
-Hi there, 
-Thanks for providing the thorugh audit report for the utherverse claim program, here are the fixes accoridng to the audit suggestions.
+Hi There, 
+Thank you for providing a thorough audit report for the Utherverse Claim Program. Below are the fixes implemented based on your audit suggestions.
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-1) update_bulk_user_status function
+1) `update_bulk_user_status` Function
 
-- We have made sure that the access control for this function is safely managed and it only allows the initializer to update the stauts of the users. 
-- Instead of adding the check within the function logic, we have put an account constraint in the UpdateUser context as follow. 
+- We have ensured that the access control for this function is securely managed, allowing only the initializer to update the status of users. 
+- Instead of embedding the check within the function logic, we have included an account constraint in the `UpdateUser` context as follows:
 - constraint=data_account.initializer == sender.key() @ ErrorCode::InvalidSender
 -  #[account(
         mut,
@@ -15,20 +15,22 @@ Thanks for providing the thorugh audit report for the utherverse claim program, 
         constraint=data_account.initializer == sender.key() @ ErrorCode::InvalidSender
     )]
     pub data_account: Account<'info, DataAccount>
-- the above checks make sure that only the initializer wallet of data account can call this function, for other wallets it will give error (i.e ErrorCode::InvalidSender)
+- The above constraints ensure that only the initializer wallet associated with the data_account can invoke this function. For any other wallets, an error (ErrorCode::InvalidSender) will 
+  be returned.
 
 
 2) State Update vs. Transfer Atomicity
 
-- We have added the recommended check for the token transfer, now the states will only update if the transfer is successful which will keep the transfers and state updates consistent. 
+- We have added the recommended checks for token transfers. Now, state updates will only occur if the transfer is successful, ensuring consistency between transfers and state updates.
 - token::transfer(cpi_ctx, amount_to_transfer * u64::pow(10, decimals as u32))?
-- The above instruction will make sure that if the transfer is succeful then update the states but if there is any issue during transfer revert on the Ok() result of the main function.
+- This instruction ensures that states are updated only upon successful transfers. If any issue arises during the transfer, the function will return early with an error, maintaining 
+  atomicity.
 - More Details below
-- In Rust, the ? operator automatically unwraps the Result, returning the value inside the Ok variant if successful, or returning early with the error if it’s an Err. 
+- In Rust, the ? operator automatically unwraps the Result, returning the value inside the Ok variant if successful, or returning early with the Err. 
 
 3)  Escrow Wallet Authority 
 
-- The escrow wallet authority is tied to a Program Derived address instead of a mutable external account. 
+- The escrow wallet authority is now tied to a Program Derived Address (PDA) rather than a mutable external account. 
 - #[account(
         init,
         payer = sender,
@@ -38,19 +40,18 @@ Thanks for providing the thorugh audit report for the utherverse claim program, 
         token::authority=escrow_wallet,
     )]
     pub escrow_wallet: Account<'info, TokenAccount>,
-- In the code snippet above, we are creating a PDA named escrow_wallet with custom seeds and bump value, the PDA is specifically created to store the specific token only, and the 
-authority of this PDA is tied with same Program dervied account, by using the same pda as authority no external mutable account can Hijack the escrow wallet, only the program can use 
-it to transfer the funds to claimeties.
+- In the above snippet, a PDA named escrow_wallet is created with custom seeds and a bump value. This PDA is specifically designed to store tokens and its authority is tied to the same PDA, ensuring that no external mutable account can hijack the escrow wallet. Only the program can access and transfer funds from this escrow.
 
 4)  Infinite Token Minting via Initialization
-- We have created the whole backend for the claim pool initialization, we have all the input validations and security checks using our backend. THe backend has been heavily tested and all edge
-cases have been covered. There can not be infinite minting as the admin can intialize the pool and see all the beneficiaries before releasing the tokens using release function. The contract is being used
-tp store the data and we providing the proceesed data to contract, the initialization logic is intended to work like that. 
+- The backend for the claim pool initialization has been developed with comprehensive input validations and security checks.
+- The backend has undergone extensive testing, covering all edge cases. Infinite minting is not possible because the admin initializes the pool and can review all beneficiaries before 
+  releasing tokens via the release function.
+- The contract serves as a data store, and the backend ensures that only preprocessed data is submitted. The initialization logic is designed to operate in this manner.
 
 5) No Recovery Mechanism for Unclaimed Tokens
-- We have created a function named withdraw_from_escrow(), this function will allow only the initializer to withdraw all the unclaimed rewards. 
-- There are some pre-requisets of this function, i) the admin can only withdraw the funds of users who have either not claimed the tokens or they are blocked to claimed tokens from escrow. 
-ii) if initializer wishes to close the claim pool then he needs to block all the user who have not claimed yet using the function named update_bulk_user_status(). After that initializer  can withdraw all the remianing funds from the escrow. 
+- We have implemented a function named withdraw_from_escrow(). This function allows only the initializer to withdraw unclaimed rewards under certain conditions:
+        1) The admin can withdraw tokens belonging to users who either have not claimed their rewards or are blocked from doing so.
+        2) If the initializer wishes to close the claim pool, they must block all unclaimed users using the update_bulk_user_status() function. Once this is done, the initializer can                  withdraw the remaining funds from the escrow.
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
