@@ -1,0 +1,53 @@
+Hi there, 
+Thanks for providing the thorugh audit report for the utherverse claim program, here are the fixes accoridng to the audit suggestions.
+
+1) update_bulk_user_status function
+
+- We have made sure that the access control for this function is safely managed and it only allows the initializer to update the stauts of the users. 
+- Instead of adding the check within the function logic, we have put an account constraint in the UpdateUser context as follow. 
+- constraint=data_account.initializer == sender.key() @ ErrorCode::InvalidSender
+-  #[account(
+        mut,
+        seeds = [&round.to_le_bytes().as_ref(), &claim_type.to_le_bytes().as_ref(), &batch.to_le_bytes().as_ref(), constants::DATA_SEED, token_mint.key().as_ref()],
+        bump,
+        constraint=data_account.initializer == sender.key() @ ErrorCode::InvalidSender
+    )]
+    pub data_account: Account<'info, DataAccount>
+- the above checks make sure that only the initializer wallet of data account can call this function, for other wallets it will give error (i.e ErrorCode::InvalidSender)
+
+
+2) State Update vs. Transfer Atomicity
+
+- We have added the recommended check for the token transfer, now the states will only update if the transfer is successful which will keep the transfers and state updates consistent. 
+- token::transfer(cpi_ctx, amount_to_transfer * u64::pow(10, decimals as u32))?
+- The above instruction will make sure that if the transfer is succeful then update the states but if there is any issue during transfer revert on the Ok() result of the main function.
+- More Details below
+- In Rust, the ? operator automatically unwraps the Result, returning the value inside the Ok variant if successful, or returning early with the error if it’s an Err. 
+
+3)  Escrow Wallet Authority 
+
+- The escrow wallet authority is tied to a Program Derived address instead of a mutable external account. 
+- #[account(
+        init,
+        payer = sender,
+        seeds=[constants::ESCROW_SEED.as_ref(), token_mint.key().as_ref(), data_account.key().as_ref()],
+        bump,
+        token::mint=token_mint,
+        token::authority=escrow_wallet,
+    )]
+    pub escrow_wallet: Account<'info, TokenAccount>,
+- In the code snippet above, we are creating a PDA named escrow_wallet with custom seeds and bump value, the PDA is specifically created to store the specific token only, and the 
+authority of this PDA is tied with same Program dervied account, by using the same pda as authority no external mutable account can Hijack the escrow wallet, only the program can use 
+it to transfer the funds to claimeties.
+
+4)  Infinite Token Minting via Initialization
+- We have created the whole backend for the claim pool initialization, we have all the input validations and security checks using our backend. THe backend has been heavily tested and all edge
+cases have been covered. There can not be infinite minting as the admin can intialize the pool and see all the beneficiaries before releasing the tokens using release function. The contract is being used
+tp store the data and we providing the proceesed data to contract, the initialization logic is intended to work like that. 
+
+5) No Recovery Mechanism for Unclaimed Tokens
+
+
+
+
+
