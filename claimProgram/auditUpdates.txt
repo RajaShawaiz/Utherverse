@@ -40,7 +40,8 @@ Thank you for providing a thorough audit report for the Utherverse Claim Program
         token::authority=escrow_wallet,
     )]
     pub escrow_wallet: Account<'info, TokenAccount>,
-- In the above snippet, a PDA named escrow_wallet is created with custom seeds and a bump value. This PDA is specifically designed to store tokens and its authority is tied to the same PDA, ensuring that no external mutable account can hijack the escrow wallet. Only the program can access and transfer funds from this escrow.
+- In the above snippet, a PDA named escrow_wallet is created with custom seeds and a bump value. This PDA is specifically designed to store tokens and its authority is tied to the same
+PDA, ensuring that no external mutable account can hijack the escrow wallet. Only the program can access and transfer funds from this escrow.
 
 4)  Infinite Token Minting via Initialization
 - The backend for the claim pool initialization has been developed with comprehensive input validations and security checks.
