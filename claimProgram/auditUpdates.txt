@@ -50,7 +50,7 @@ tp store the data and we providing the proceesed data to contract, the initializ
 5) No Recovery Mechanism for Unclaimed Tokens
 - We have created a function named withdraw_from_escrow(), this function will allow only the initializer to withdraw all the unclaimed rewards. 
 - There are some pre-requisets of this function, i) the admin can only withdraw the funds of users who have either not claimed the tokens or they are blocked to claimed tokens from escrow. 
-ii) if initializer wishes to close the claim pool then he needs to block all the user who have not claimed yet using the function named update_bulk_user_status(). After that he can withdraw all the remianing funds from the escrow. 
+ii) if initializer wishes to close the claim pool then he needs to block all the user who have not claimed yet using the function named update_bulk_user_status(). After that initializer  can withdraw all the remianing funds from the escrow. 
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
