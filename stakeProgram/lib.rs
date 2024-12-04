@@ -26,16 +26,37 @@ pub mod staking_program {
         ctx: Context<Initialize>,
         lock_time: u64,
         apy: u64,
-        apy_denomiator: u64,
+        apy_denominator: u64,
         roi_type: u64,
     ) -> Result<()> {
+        // Validate input parameters
+
+        if lock_time <= 0 {
+            return Err(ErrorCode::InvalidLockTime.into());
+        }
+        if apy <= 0 {
+            return Err(ErrorCode::InvalidApy.into());
+        }
+        if apy_denominator <= 0 {
+            return Err(ErrorCode::InvalidApyDenominator.into());
+        }
+        if roi_type > 2 {
+            return Err(ErrorCode::InvalidRoiType.into());
+        }
+
         let pool_info = &mut ctx.accounts.pool_info;
 
+        // Ensure the admin is set correctly
+        if pool_info.admin != Pubkey::default() && pool_info.admin != ctx.accounts.admin.key() {
+            return Err(ErrorCode::UnauthorizedAdmin.into());
+        }
+
+        //Setup pool info states
         pool_info.admin = ctx.accounts.admin.key();
         pool_info.token_vault = ctx.accounts.token_vault_account.key();
         pool_info.lock_time = lock_time;
         pool_info.apy = apy;
-        pool_info.apy_denominator = apy_denomiator;
+        pool_info.apy_denominator = apy_denominator;
         pool_info.roi_type = roi_type; // 0-> Daily, 1-> Weekly, 2-> Monthly
         pool_info.token = ctx.accounts.mint.key();
 
@@ -50,19 +71,34 @@ pub mod staking_program {
     ) -> Result<()> {
         let stake_info = &mut ctx.accounts.stake_info_account;
 
+        //check if stake_seed is unique
+        if stake_info.stake_seed == stake_counter {
+            return Err(ErrorCode::IsStakeSeed.into());
+        }
+
+        //check if user has already staked
         if stake_info.is_staked {
             return Err(ErrorCode::IsStaked.into());
         }
+
+        //Ensure that the amount is a positive integer
         if amount <= 0 {
             return Err(ErrorCode::NoTokens.into());
         }
 
+        //Ensure non re-entrance
+        if stake_info.in_process {
+            return Err(ErrorCode::AlreadyInProcess.into());
+        }
+
         let clock = Clock::get()?;
 
+        //Setup states before transfer
         stake_info.deposit_timestamp = clock.unix_timestamp;
         msg!("Deposit Timestamp: {}", stake_info.deposit_timestamp);
         stake_info.stake_at_slot = clock.slot;
         stake_info.is_staked = true;
+        stake_info.in_process = true;
         stake_info.stake_seed = stake_counter;
         stake_info.autostake = autostake;
         let pool_info = &ctx.accounts.pool_info;
@@ -72,6 +108,8 @@ pub mod staking_program {
         let stake_amount = (amount)
             .checked_mul(10u64.pow(ctx.accounts.mint.decimals as u32))
             .unwrap();
+
+        //transfer the tokens from user account to user stake account
         transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -83,9 +121,11 @@ pub mod staking_program {
             ),
             stake_amount,
         )?;
+
+        //update remaining states of stake info account
         stake_info.staked_amount = stake_amount;
         stake_info.end_time = stake_info.stake_at_slot + lock_time;
-        // stake_info.unclaimed_rewards = 0; remove this line because when they call stake function for second time, it can cassue issues if rewrds were not claimed for last period
+        stake_info.unclaimed_rewards = 0;
         stake_info.last_interaction_time = clock.slot;
         stake_info.total_claimed = 0;
         stake_info.pool_info = pool_info.key();
@@ -105,22 +145,33 @@ pub mod staking_program {
             return Err(ErrorCode::InvalidRoiType.into());
         }
 
+        stake_info.in_process = false;
+
         Ok(())
     }
 
-    pub fn destake(ctx: Context<DeStake>) -> Result<()> {
+    pub fn destake(ctx: Context<DeStake>, stake_counter: u64) -> Result<()> {
         let stake_info = &mut ctx.accounts.stake_info_account;
         let pool_info = &mut ctx.accounts.pool_info;
 
+        //Ensure that the stake record exists for a user
         if !stake_info.is_staked {
             return Err(ErrorCode::NotStaked.into());
         }
 
         let clock = Clock::get()?;
 
+        //Ensure that the user is not unstaking before lock period is over
         if clock.slot < stake_info.end_time {
             return Err(ErrorCode::StillLocked.into());
         }
+
+        //Ensure non re-entrance
+        if stake_info.in_process {
+            return Err(ErrorCode::AlreadyInProcess.into());
+        }
+
+        stake_info.in_process = true;
 
         let stake_amount = ctx.accounts.stake_account.amount;
 
@@ -134,29 +185,26 @@ pub mod staking_program {
             };
 
             let total_cycles = stake_info.total_claim_cycles;
-            let mut current_stake = stake_info.staked_amount;
-            let mut total_reward = 0u64;
+            let current_stake = stake_info.staked_amount;
+            // Safely convert total_cycles to i32
+            let total_cycles_i32 = total_cycles
+                .try_into()
+                .map_err(|_| ErrorCode::InvalidCycleCount)?;
 
-            // Loop through each cycle and calculate compound reward
-            for _ in 0..total_cycles {
-                let reward_rate = current_stake * pool_info.apy
-                    / pool_info.apy_denominator
-                    / constants::SLOTS_PER_YEAR;
+            // Calculate the effective APY for the cycle
+            let apy_per_cycle = pool_info.apy as f64 / pool_info.apy_denominator as f64
+                * (cycle_duration as f64 / constants::SLOTS_PER_YEAR as f64);
 
-                // Reward for this cycle
-                let cycle_reward = reward_rate * cycle_duration;
-
-                // Add to total reward
-                total_reward += cycle_reward;
-
-                // Add reward to the staked amount to simulate compound interest
-                current_stake += cycle_reward;
-            }
+            // Calculate total compounded reward
+            let total_reward = current_stake as f64 * (1.0 + apy_per_cycle).powi(total_cycles_i32)
+                - current_stake as f64;
 
             let bump_for_vault = ctx.bumps.token_vault_account;
 
             let signer_seeds_for_reward: &[&[&[u8]]] =
                 &[&[constants::VAULT_SEED, &[bump_for_vault]]];
+
+            //Transfer the rewards from vault to user wallet
 
             let transfer_from_vault_accounts = Transfer {
                 from: ctx.accounts.token_vault_account.to_account_info(),
@@ -170,7 +218,7 @@ pub mod staking_program {
                 signer_seeds_for_reward,
             );
 
-            transfer(ctxx, total_reward)?;
+            transfer(ctxx, total_reward as u64)?;
         }
 
         let staker = ctx.accounts.signer.key();
@@ -184,6 +232,8 @@ pub mod staking_program {
             poolkey.as_ref(),
             &[bump_for_stake_account],
         ]];
+
+        //transfer the amount from stake account to user walllet
 
         let transfer_from_stake_accounts = Transfer {
             from: ctx.accounts.stake_account.to_account_info(),
@@ -199,6 +249,8 @@ pub mod staking_program {
 
         transfer(ctx, stake_amount)?;
 
+        //update the states
+
         stake_info.staked_amount = 0;
         stake_info.is_staked = false;
         stake_info.end_time = 0;
@@ -207,12 +259,23 @@ pub mod staking_program {
         stake_info.last_interaction_time = clock.slot;
         stake_info.next_claim_time = 0;
 
+        stake_info.in_process = false;
+
         Ok(())
     }
 
-    pub fn calculate_rewards(ctx: Context<Reward>) -> Result<u64> {
+    pub fn calculate_rewards(ctx: Context<Reward>, stake_counter: u64) -> Result<u64> {
         let stake_info = &mut ctx.accounts.stake_info_account;
         let pool_info = &mut ctx.accounts.pool_info;
+
+        //Input parms Validations
+        if stake_info.staked_amount <= 0 {
+            return Err(ErrorCode::InvalidAmount.into());
+        }
+
+        if pool_info.apy_denominator <= 0 {
+            return Err(ErrorCode::InvalidApyDenominator.into());
+        }
 
         let reward_rate = stake_info.staked_amount * pool_info.apy
             / pool_info.apy_denominator
@@ -228,30 +291,40 @@ pub mod staking_program {
         Ok(total_reward)
     }
 
-    pub fn claim_rewards(ctx: Context<Reward>) -> Result<()> {
+    pub fn claim_rewards(ctx: Context<Reward>, stake_counter: u64) -> Result<()> {
         let stake_info = &mut ctx.accounts.stake_info_account;
         let pool_info = &mut ctx.accounts.pool_info;
         let roi_type = pool_info.roi_type;
         let clock = Clock::get()?;
-        // let slot_passed = clock.slot - stake_info.last_interaction_time;
         let bump_for_vault = ctx.bumps.token_vault_account;
         let signer_seeds_for_reward: &[&[&[u8]]] = &[&[constants::VAULT_SEED, &[bump_for_vault]]];
 
+        //Ensure that the user has staked some tokens before claim
         if !stake_info.is_staked {
             return Err(ErrorCode::NotStaked.into());
         }
 
+        //Ensure that user has not claimed all the records
         if stake_info.claim_cycles_passed == stake_info.total_claim_cycles {
             return Err(ErrorCode::AlreadyClaimed.into());
         }
 
+        //Ensure that the claim time is not over
         if stake_info.last_interaction_time > stake_info.end_time {
             return Err(ErrorCode::TimeOver.into());
         }
 
+        //Ensure that the rewards can be only claimed if autostake is false
         if stake_info.autostake {
             return Err(ErrorCode::NoClaim.into());
         }
+
+        //Ensure non re-entrance
+        if stake_info.in_process {
+            return Err(ErrorCode::AlreadyInProcess.into());
+        }
+
+        stake_info.in_process = true;
 
         let reward_rate = stake_info.staked_amount * pool_info.apy
             / pool_info.apy_denominator
@@ -280,15 +353,16 @@ pub mod staking_program {
         // Calculate how many additional cycles can be claimed
         let remaining_cycles = (cycles_passed as u64).min(max_cycles - claimed_cycles);
 
-        if cycles_passed < 1 {
+        if clock.slot < stake_info.next_claim_time {
             return Err(ErrorCode::Wait.into()); // Not enough time passed for any reward cycle
         }
 
         // Calculate the total reward for missed cycles
-        let total_reward =
-            stake_info.unclaimed_rewards + (reward_rate_for_cycle * remaining_cycles as u64);
+        let total_claimable_rewards = stake_info.unclaimed_rewards
+            + (reward_rate_for_cycle * ((1 as u64).max(remaining_cycles as u64)));
 
-        if total_reward <= 0 {
+        if total_claimable_rewards <= 0 {
+            // There are not enough claimable rewards
             return Err(ErrorCode::NoReward.into());
         }
 
@@ -305,42 +379,57 @@ pub mod staking_program {
             signer_seeds_for_reward,
         );
 
-        transfer(ctxx, total_reward)?;
+        transfer(ctxx, total_claimable_rewards)?;
 
         // Reset unclaimed rewards and update claim time
-        stake_info.total_claimed += total_reward;
-        stake_info.unclaimed_rewards = 0;
+        stake_info.total_claimed += total_claimable_rewards;
+        if stake_info.unclaimed_rewards >= total_claimable_rewards {
+            stake_info.unclaimed_rewards = stake_info.unclaimed_rewards - total_claimable_rewards;
+        } else {
+            stake_info.unclaimed_rewards = 0;
+        }
         stake_info.next_claim_time = stake_info.last_interaction_time
             + (reward_cycle_length * ((remaining_cycles as u64) + 1)); // Move to the next claim period
         stake_info.last_interaction_time = clock.slot;
         stake_info.claim_cycles_passed += remaining_cycles;
+        stake_info.in_process = false;
         Ok(())
     }
 
-    pub fn restake_rewards(ctx: Context<Reward>) -> Result<()> {
+    pub fn restake_rewards(ctx: Context<Reward>, stake_counter: u64) -> Result<()> {
         let stake_info = &mut ctx.accounts.stake_info_account;
         let pool_info = &mut ctx.accounts.pool_info;
         let roi_type = pool_info.roi_type;
         let clock = Clock::get()?;
-        // let slot_passed = clock.slot - stake_info.last_interaction_time;
         let bump_for_vault = ctx.bumps.token_vault_account;
         let signer_seeds_for_reward: &[&[&[u8]]] = &[&[constants::VAULT_SEED, &[bump_for_vault]]];
 
+        // Ensure that the user has staked some tokens before claim
         if !stake_info.is_staked {
             return Err(ErrorCode::NotStaked.into());
         }
 
+        //Ensure that user has not claimed all the records
         if stake_info.claim_cycles_passed == stake_info.total_claim_cycles {
             return Err(ErrorCode::AlreadyClaimed.into());
         }
 
+        //Ensure that the claim time is not over
         if stake_info.last_interaction_time > stake_info.end_time {
             return Err(ErrorCode::TimeOver.into());
         }
 
+        //Ensure that the rewards can be only claimed if autostake is false
         if stake_info.autostake {
             return Err(ErrorCode::NoClaim.into());
         }
+
+        //Ensure non re-entrance
+        if stake_info.in_process {
+            return Err(ErrorCode::AlreadyInProcess.into());
+        }
+
+        stake_info.in_process = true;
 
         let reward_rate = stake_info.staked_amount * pool_info.apy
             / pool_info.apy_denominator
@@ -369,15 +458,15 @@ pub mod staking_program {
         // Calculate how many additional cycles can be claimed
         let remaining_cycles = (cycles_passed as u64).min(max_cycles - claimed_cycles);
 
-        if cycles_passed < 1 {
+        if clock.slot < stake_info.next_claim_time {
             return Err(ErrorCode::Wait.into()); // Not enough time passed for any reward cycle
         }
 
         // Calculate the total reward for missed cycles
-        let total_reward =
-            stake_info.unclaimed_rewards + (reward_rate_for_cycle * remaining_cycles as u64);
+        let total_claimable_rewards = stake_info.unclaimed_rewards
+            + (reward_rate_for_cycle * ((1 as u64).max(remaining_cycles as u64)));
 
-        if total_reward <= 0 {
+        if total_claimable_rewards <= 0 {
             return Err(ErrorCode::NoReward.into());
         }
 
@@ -394,16 +483,23 @@ pub mod staking_program {
             signer_seeds_for_reward,
         );
 
-        transfer(ctxx, total_reward)?;
+        transfer(ctxx, total_claimable_rewards)?;
 
         // Reset unclaimed rewards and update claim time
-        stake_info.staked_amount += total_reward;
-        stake_info.total_claimed += total_reward;
-        stake_info.unclaimed_rewards = 0;
+        stake_info.staked_amount += total_claimable_rewards;
+        stake_info.total_claimed += total_claimable_rewards;
+        if stake_info.unclaimed_rewards >= total_claimable_rewards {
+            stake_info.unclaimed_rewards = stake_info.unclaimed_rewards - total_claimable_rewards;
+        } else {
+            stake_info.unclaimed_rewards = 0;
+        }
         stake_info.next_claim_time = stake_info.last_interaction_time
             + (reward_cycle_length * ((remaining_cycles as u64) + 1)); // Move to the next claim period
         stake_info.last_interaction_time = clock.slot;
         stake_info.claim_cycles_passed += remaining_cycles;
+
+        stake_info.in_process = false;
+
         Ok(())
     }
 
@@ -535,6 +631,7 @@ pub struct Stake<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(stake_counter: u64)]
 pub struct DeStake<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
@@ -548,7 +645,7 @@ pub struct DeStake<'info> {
 
     #[account(
         mut,
-        seeds = [constants::STAKE_INFO_SEED, signer.key.as_ref(), pool_info.key().as_ref()],
+        seeds = [ &stake_counter.to_le_bytes().as_ref(), constants::STAKE_INFO_SEED, signer.key.as_ref(), pool_info.key().as_ref(),  ],
         bump,
     )]
     pub stake_info_account: Account<'info, StakeInfo>,
@@ -575,12 +672,13 @@ pub struct DeStake<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(stake_counter: u64)]
 pub struct Reward<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
     #[account(
         mut,
-        seeds = [constants::STAKE_INFO_SEED, signer.key.as_ref(), pool_info.key().as_ref()],
+        seeds = [ &stake_counter.to_le_bytes().as_ref(), constants::STAKE_INFO_SEED, signer.key.as_ref(), pool_info.key().as_ref(),  ],
         bump,
     )]
     pub stake_info_account: Account<'info, StakeInfo>,
@@ -662,6 +760,7 @@ pub struct StakeInfo {
     pub total_claim_cycles: u64,
     pub claim_cycles_passed: u64,
     pub stake_seed: u64,
+    pub in_process: bool,
 }
 
 #[error_code]
@@ -672,7 +771,7 @@ pub enum ErrorCode {
     NotStaked,
     #[msg("No tokens to stake")]
     NoTokens,
-    #[msg("Invalid ROI type provided.")]
+    #[msg("Invalid ROI type: must be 0, 1, or 2.")]
     InvalidRoiType,
     #[msg("You don't have any rewards to claim.")]
     NoReward,
@@ -688,4 +787,20 @@ pub enum ErrorCode {
     TimeOver,
     #[msg("All the rewards have already been Claimed.")]
     AlreadyClaimed,
+    #[msg("Invalid APY denominator: cannot be zero.")]
+    InvalidApyDenominator,
+    #[msg("Invalid APY %: cannot be zero.")]
+    InvalidApy,
+    #[msg("Invalid lock period: cannot be zero.")]
+    InvalidLockTime,
+    #[msg("Unauthorized admin address.")]
+    UnauthorizedAdmin,
+    #[msg("Stake Seed Already in use.")]
+    IsStakeSeed,
+    #[msg("Invalid Stake Amount.")]
+    InvalidAmount,
+    #[msg("Please Wait, Another Transaction is already Processing")]
+    AlreadyInProcess,
+    #[msg("Cycle count exceed i32 range")]
+    InvalidCycleCount,
 }
