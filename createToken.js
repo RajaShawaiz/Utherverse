@@ -17,9 +17,10 @@ console.log("🚀 ~ userWalletSigner:", userWalletSigner)
 
 const metadata = {
     name: "Utherverse",
-    symbol: "UTHX",
-    uri: "https://gold-impressive-krill-904.mypinata.cloud/ipfs/Qmbr7edQjFA7o9Drpc8U9YdBVRvUpN2u9QCyVHWns6SogQ", // Metadata file
+    symbol: "UTHR",
+    uri: "https://raw.githubusercontent.com/RajaShawaiz/Utherverse/refs/heads/main/metadata.json", // Metadata file
 };
+
 
 
 const mint = generateSigner(umi);
@@ -35,9 +36,9 @@ umi.use(mplCandyMachine())
     uri: metadata.uri,
     sellerFeeBasisPoints: percentAmount(0),
     decimals: 9,
-    amount: 1_000000000n, //1 Token
+    amount: 10000000_000000000n, //1 Token
     tokenOwner: userWallet.publicKey,
-    tokenStandard: TokenStandard.Fungible,
+    tokenStandard: TokenStandard.Fungible,    
     }).add(setComputeUnitLimit(umi, { units: 600_000 })).add(setComputeUnitPrice(umi, { microLamports: 2022000 })).sendAndConfirm(umi).then(() => {
-    console.log("Successfully minted 1 UTX token (", mint.publicKey, ")");
+    console.log("Successfully minted 10 Million UTHR token (", mint.publicKey, ")");
 });
