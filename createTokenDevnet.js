@@ -4,7 +4,7 @@ const { TokenStandard, createAndMint } =require( '@metaplex-foundation/mpl-token
 const { createUmi } =require( '@metaplex-foundation/umi-bundle-defaults');
 const { mplCandyMachine } =require("@metaplex-foundation/mpl-candy-machine");
 
-const umi = createUmi('https://api.devent-beta.solana.com'); //Replace with your Helius RPC Endpoint
+const umi = createUmi('https://api.devent.solana.com'); //Replace with your Helius RPC Endpoint
 // const umi = createUmi('https://api.devnet.solana.com'); //Replace with your Helius RPC Endpoint
 
 console.log("🚀 ~ umi:", umi);
